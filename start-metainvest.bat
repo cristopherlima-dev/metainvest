@@ -7,26 +7,26 @@ echo    Iniciando MetaInvest...
 echo ========================================
 echo.
 
-echo [1/3] Iniciando backend (porta 3001)...
+echo [1/3] Iniciando backend (porta 3101)...
 start "MetaInvest - Backend" cmd /k "cd /d %~dp0backend && npm run dev"
 
 timeout /t 3 /nobreak >nul
 
-echo [2/3] Iniciando frontend (porta 5173)...
+echo [2/3] Iniciando frontend (porta 5273)...
 start "MetaInvest - Frontend" cmd /k "cd /d %~dp0frontend && npm run dev"
 
 timeout /t 4 /nobreak >nul
 
 echo [3/3] Abrindo navegador...
-start "" "http://localhost:5173"
+start "" "http://localhost:5273"
 
 echo.
 echo ========================================
 echo    MetaInvest iniciado com sucesso!
 echo ========================================
 echo.
-echo Backend:  http://localhost:3001
-echo Frontend: http://localhost:5173
+echo Backend:  http://localhost:3101
+echo Frontend: http://localhost:5273
 echo.
 echo Para encerrar, feche as janelas do
 echo backend e do frontend.
