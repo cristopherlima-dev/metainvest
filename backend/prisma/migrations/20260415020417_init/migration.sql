@@ -1,0 +1,32 @@
+-- CreateTable
+CREATE TABLE "Ativo" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "nome" TEXT NOT NULL,
+    "tipo" TEXT NOT NULL,
+    "saldoInicial" REAL NOT NULL DEFAULT 0,
+    "criadoEm" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
+CREATE TABLE "Meta" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "ativoId" INTEGER NOT NULL,
+    "valorAlvo" REAL NOT NULL DEFAULT 1000,
+    "valorAcumulado" REAL NOT NULL DEFAULT 0,
+    "status" TEXT NOT NULL DEFAULT 'ativa',
+    "iniciadaEm" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "concluidaEm" DATETIME,
+    CONSTRAINT "Meta_ativoId_fkey" FOREIGN KEY ("ativoId") REFERENCES "Ativo" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "Aporte" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "metaId" INTEGER NOT NULL,
+    "valorTotal" REAL NOT NULL,
+    "quantidade" REAL,
+    "valorUnitario" REAL,
+    "data" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "observacao" TEXT,
+    CONSTRAINT "Aporte_metaId_fkey" FOREIGN KEY ("metaId") REFERENCES "Meta" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
