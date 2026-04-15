@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import api from "../services/api";
 import { formatBRL, TIPOS_ATIVO } from "../utils/format";
+import { useUI } from "../contexts/UIContext";
 
 export default function Ativos() {
+  const { toast, confirm, prompt } = useUI();
   const [ativos, setAtivos] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -26,31 +28,45 @@ export default function Ativos() {
       await api.post("/ativos", form);
       setForm({ nome: "", tipo: "caixinha_nubank", saldoInicial: "" });
       setShowForm(false);
+      toast.success("Ativo criado!");
       carregar();
     } catch (err) {
-      alert(err.response?.data?.erro || "Erro ao criar ativo");
+      toast.error(err.response?.data?.erro || "Erro ao criar ativo");
     }
   }
 
   async function iniciarMeta(ativoId) {
-    const valorAlvo = prompt("Valor da meta (padrão R$ 1.000):", "1000");
+    const valorAlvo = await prompt({
+      title: "Nova meta",
+      message: "Defina o valor alvo desta meta:",
+      defaultValue: "1000",
+      inputType: "number",
+      confirmText: "Criar meta",
+    });
     if (valorAlvo === null) return;
     try {
       await api.post("/metas", { ativoId, valorAlvo });
-      alert("Meta criada! Vá ao Dashboard para acompanhar.");
+      toast.success("Meta criada! Vá ao Dashboard para acompanhar.");
       carregar();
     } catch (err) {
-      alert(err.response?.data?.erro || "Erro ao criar meta");
+      toast.error(err.response?.data?.erro || "Erro ao criar meta");
     }
   }
 
-  async function excluirAtivo(id) {
-    if (!confirm("Excluir este ativo e todas as suas metas/aportes?")) return;
+  async function excluirAtivo(id, nome) {
+    const ok = await confirm({
+      title: "Excluir ativo",
+      message: `Tem certeza que deseja excluir "${nome}"? Todas as metas e aportes relacionados serão perdidos.`,
+      confirmText: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/ativos/${id}`);
+      toast.success("Ativo excluído");
       carregar();
     } catch (err) {
-      alert(err.response?.data?.erro || "Erro ao excluir");
+      toast.error(err.response?.data?.erro || "Erro ao excluir");
     }
   }
 
@@ -153,7 +169,7 @@ export default function Ativos() {
                     </button>
                   )}
                   <button
-                    onClick={() => excluirAtivo(a.id)}
+                    onClick={() => excluirAtivo(a.id, a.nome)}
                     className="text-red-400 hover:text-red-300 text-sm"
                   >
                     Excluir

@@ -3,18 +3,21 @@ import Layout from "./components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Ativos from "./pages/Ativos";
 import Metas from "./pages/Metas";
+import { UIProvider } from "./contexts/UIContext";
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="ativos" element={<Ativos />} />
-          <Route path="metas" element={<Metas />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <UIProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="ativos" element={<Ativos />} />
+            <Route path="metas" element={<Metas />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </UIProvider>
   );
 }
 

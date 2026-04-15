@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../services/api";
 import { formatBRL, formatData, TIPOS_ATIVO } from "../utils/format";
+import { useUI } from "../contexts/UIContext";
 
 export default function Dashboard() {
+  const { toast, confirm } = useUI();
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -52,21 +54,31 @@ export default function Dashboard() {
       });
       setShowForm(false);
       if (res.data.metaConcluida) {
-        alert("🎉 Parabéns! Meta concluída!");
+        toast.success("🎉 Parabéns! Meta concluída!");
+      } else {
+        toast.success("Aporte registrado!");
       }
       carregarMeta();
     } catch (err) {
-      alert(err.response?.data?.erro || "Erro ao registrar aporte");
+      toast.error(err.response?.data?.erro || "Erro ao registrar aporte");
     }
   }
 
   async function excluirAporte(id) {
-    if (!confirm("Excluir este aporte?")) return;
+    const ok = await confirm({
+      title: "Excluir aporte",
+      message:
+        "Tem certeza que deseja excluir este aporte? O valor acumulado da meta será recalculado.",
+      confirmText: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/aportes/${id}`);
+      toast.success("Aporte excluído");
       carregarMeta();
     } catch (err) {
-      alert(err.response?.data?.erro || "Erro ao excluir");
+      toast.error(err.response?.data?.erro || "Erro ao excluir");
     }
   }
 
