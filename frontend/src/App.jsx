@@ -1,11 +1,20 @@
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Layout from "./components/Layout";
+import Dashboard from "./pages/Dashboard";
+import Ativos from "./pages/Ativos";
+import Metas from "./pages/Metas";
+
 function App() {
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-5xl font-bold mb-4">MetaInvest 📈</h1>
-        <p className="text-slate-400 text-lg">Frontend iniciado com sucesso!</p>
-      </div>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="ativos" element={<Ativos />} />
+          <Route path="metas" element={<Metas />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   );
 }
 
