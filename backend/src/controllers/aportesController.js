@@ -122,3 +122,84 @@ export async function deletarAporte(req, res) {
     res.status(500).json({ erro: error.message });
   }
 }
+
+export async function atualizarAporte(req, res) {
+  try {
+    const { id } = req.params;
+    const { quantidade, valorUnitario, valorTotal, observacao, data } =
+      req.body;
+
+    const aporte = await prisma.aporte.findUnique({
+      where: { id: Number(id) },
+      include: { meta: { include: { ativo: true } } },
+    });
+    if (!aporte) return res.status(404).json({ erro: "Aporte não encontrado" });
+
+    const meta = aporte.meta;
+    const isCaixinha = meta.ativo.tipo === "caixinha_nubank";
+
+    let dadosAtualizados;
+    let novoValorTotal;
+
+    if (isCaixinha) {
+      if (!valorTotal || Number(valorTotal) <= 0) {
+        return res
+          .status(400)
+          .json({ erro: "valorTotal é obrigatório para caixinhas" });
+      }
+      novoValorTotal = Number(valorTotal);
+      dadosAtualizados = {
+        valorTotal: novoValorTotal,
+        observacao:
+          observacao !== undefined ? observacao || null : aporte.observacao,
+        ...(data && { data: new Date(data) }),
+      };
+    } else {
+      if (!quantidade || !valorUnitario) {
+        return res
+          .status(400)
+          .json({ erro: "quantidade e valorUnitario são obrigatórios" });
+      }
+      novoValorTotal = Number(quantidade) * Number(valorUnitario);
+      dadosAtualizados = {
+        quantidade: Number(quantidade),
+        valorUnitario: Number(valorUnitario),
+        valorTotal: novoValorTotal,
+        observacao:
+          observacao !== undefined ? observacao || null : aporte.observacao,
+        ...(data && { data: new Date(data) }),
+      };
+    }
+
+    const aporteAtualizado = await prisma.aporte.update({
+      where: { id: Number(id) },
+      data: dadosAtualizados,
+    });
+
+    // Recalcula valor acumulado da meta (subtrai o antigo, soma o novo)
+    const diferenca = novoValorTotal - aporte.valorTotal;
+    const novoAcumulado = meta.valorAcumulado + diferenca;
+    const atingiuMeta = novoAcumulado >= meta.valorAlvo;
+
+    await prisma.meta.update({
+      where: { id: meta.id },
+      data: {
+        valorAcumulado: novoAcumulado < 0 ? 0 : novoAcumulado,
+        ...(atingiuMeta &&
+          meta.status === "ativa" && {
+            status: "concluida",
+            concluidaEm: new Date(),
+          }),
+        ...(!atingiuMeta &&
+          meta.status === "concluida" && {
+            status: "ativa",
+            concluidaEm: null,
+          }),
+      },
+    });
+
+    res.json({ aporte: aporteAtualizado, metaConcluida: atingiuMeta });
+  } catch (error) {
+    res.status(500).json({ erro: error.message });
+  }
+}

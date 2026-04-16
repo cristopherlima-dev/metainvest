@@ -68,15 +68,60 @@ export async function atualizarAtivo(req, res) {
     const { id } = req.params;
     const { nome, saldoInicial } = req.body;
 
+    const ativoAtual = await prisma.ativo.findUnique({
+      where: { id: Number(id) },
+    });
+    if (!ativoAtual)
+      return res.status(404).json({ erro: "Ativo não encontrado" });
+
+    const novoSaldoInicial =
+      saldoInicial !== undefined
+        ? Number(saldoInicial)
+        : ativoAtual.saldoInicial;
+    const diferencaSaldo = novoSaldoInicial - ativoAtual.saldoInicial;
+
+    // Atualiza o ativo
     const ativo = await prisma.ativo.update({
       where: { id: Number(id) },
       data: {
         ...(nome !== undefined && { nome }),
-        ...(saldoInicial !== undefined && {
-          saldoInicial: Number(saldoInicial),
-        }),
+        ...(saldoInicial !== undefined && { saldoInicial: novoSaldoInicial }),
       },
     });
+
+    // Se o saldo inicial mudou, ajusta a PRIMEIRA meta deste ativo (se ainda existir)
+    if (diferencaSaldo !== 0) {
+      const primeiraMeta = await prisma.meta.findFirst({
+        where: { ativoId: Number(id) },
+        orderBy: { iniciadaEm: "asc" },
+      });
+
+      if (primeiraMeta) {
+        const novoAcumulado = primeiraMeta.valorAcumulado + diferencaSaldo;
+        const acumuladoFinal = novoAcumulado < 0 ? 0 : novoAcumulado;
+        const atingiuMeta = acumuladoFinal >= primeiraMeta.valorAlvo;
+
+        await prisma.meta.update({
+          where: { id: primeiraMeta.id },
+          data: {
+            valorAcumulado: acumuladoFinal,
+            // Se passou a atingir, conclui
+            ...(atingiuMeta &&
+              primeiraMeta.status === "ativa" && {
+                status: "concluida",
+                concluidaEm: new Date(),
+              }),
+            // Se deixou de atingir, reabre
+            ...(!atingiuMeta &&
+              primeiraMeta.status === "concluida" && {
+                status: "ativa",
+                concluidaEm: null,
+              }),
+          },
+        });
+      }
+    }
+
     res.json(ativo);
   } catch (error) {
     res.status(500).json({ erro: error.message });

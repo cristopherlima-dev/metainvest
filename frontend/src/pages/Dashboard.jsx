@@ -3,13 +3,22 @@ import { Link } from "react-router-dom";
 import api from "../services/api";
 import { formatBRL, formatData, TIPOS_ATIVO } from "../utils/format";
 import { useUI } from "../contexts/UIContext";
+import FormModal from "../components/FormModal";
 
 export default function Dashboard() {
-  const { toast, confirm } = useUI();
+  const { toast, confirm, prompt } = useUI();
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
+    quantidade: "",
+    valorUnitario: "",
+    valorTotal: "",
+    observacao: "",
+  });
+
+  const [aporteEditando, setAporteEditando] = useState(null);
+  const [editForm, setEditForm] = useState({
     quantidade: "",
     valorUnitario: "",
     valorTotal: "",
@@ -64,6 +73,38 @@ export default function Dashboard() {
     }
   }
 
+  function abrirEdicaoAporte(aporte) {
+    setAporteEditando(aporte);
+    setEditForm({
+      quantidade: aporte.quantidade || "",
+      valorUnitario: aporte.valorUnitario || "",
+      valorTotal: aporte.valorTotal || "",
+      observacao: aporte.observacao || "",
+    });
+  }
+
+  async function salvarEdicaoAporte(e) {
+    e.preventDefault();
+    const isCaixinha = meta.ativo.tipo === "caixinha_nubank";
+    const payload = { observacao: editForm.observacao };
+
+    if (isCaixinha) {
+      payload.valorTotal = editForm.valorTotal;
+    } else {
+      payload.quantidade = editForm.quantidade;
+      payload.valorUnitario = editForm.valorUnitario;
+    }
+
+    try {
+      await api.put(`/aportes/${aporteEditando.id}`, payload);
+      toast.success("Aporte atualizado!");
+      setAporteEditando(null);
+      carregarMeta();
+    } catch (err) {
+      toast.error(err.response?.data?.erro || "Erro ao atualizar");
+    }
+  }
+
   async function excluirAporte(id) {
     const ok = await confirm({
       title: "Excluir aporte",
@@ -79,6 +120,24 @@ export default function Dashboard() {
       carregarMeta();
     } catch (err) {
       toast.error(err.response?.data?.erro || "Erro ao excluir");
+    }
+  }
+
+  async function alterarValorAlvo() {
+    const novoValor = await prompt({
+      title: "Alterar valor da meta",
+      message: "Defina o novo valor alvo:",
+      defaultValue: String(meta.valorAlvo),
+      inputType: "number",
+      confirmText: "Salvar",
+    });
+    if (novoValor === null) return;
+    try {
+      await api.put(`/metas/${meta.id}`, { valorAlvo: novoValor });
+      toast.success("Valor da meta atualizado!");
+      carregarMeta();
+    } catch (err) {
+      toast.error(err.response?.data?.erro || "Erro ao atualizar");
     }
   }
 
@@ -137,12 +196,20 @@ export default function Dashboard() {
           />
         </div>
 
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="mt-6 bg-emerald-600 hover:bg-emerald-700 px-6 py-2 rounded-lg font-semibold transition"
-        >
-          {showForm ? "Cancelar" : "+ Novo aporte"}
-        </button>
+        <div className="flex gap-2 mt-6 flex-wrap">
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-emerald-600 hover:bg-emerald-700 px-6 py-2 rounded-lg font-semibold transition"
+          >
+            {showForm ? "Cancelar" : "+ Novo aporte"}
+          </button>
+          <button
+            onClick={alterarValorAlvo}
+            className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm transition"
+          >
+            Alterar valor da meta
+          </button>
+        </div>
 
         {showForm && (
           <form
@@ -250,17 +317,104 @@ export default function Dashboard() {
                     {a.observacao && ` • ${a.observacao}`}
                   </p>
                 </div>
-                <button
-                  onClick={() => excluirAporte(a.id)}
-                  className="text-red-400 hover:text-red-300 text-sm"
-                >
-                  Excluir
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => abrirEdicaoAporte(a)}
+                    className="text-slate-300 hover:text-white text-sm"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => excluirAporte(a.id)}
+                    className="text-red-400 hover:text-red-300 text-sm"
+                  >
+                    Excluir
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      <FormModal
+        isOpen={!!aporteEditando}
+        title="Editar aporte"
+        onClose={() => setAporteEditando(null)}
+        onSubmit={salvarEdicaoAporte}
+      >
+        {isCaixinha ? (
+          <div>
+            <label className="block text-sm text-slate-300 mb-1">
+              Valor (R$)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              required
+              value={editForm.valorTotal}
+              onChange={(e) =>
+                setEditForm({ ...editForm, valorTotal: e.target.value })
+              }
+              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white"
+            />
+          </div>
+        ) : (
+          <>
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">
+                Quantidade
+              </label>
+              <input
+                type="number"
+                step="0.00000001"
+                required
+                value={editForm.quantidade}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, quantidade: e.target.value })
+                }
+                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-300 mb-1">
+                Valor unitário (R$)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                value={editForm.valorUnitario}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, valorUnitario: e.target.value })
+                }
+                className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white"
+              />
+            </div>
+            {editForm.quantidade && editForm.valorUnitario && (
+              <div className="text-sm text-slate-400">
+                Novo total:{" "}
+                {formatBRL(
+                  Number(editForm.quantidade) * Number(editForm.valorUnitario),
+                )}
+              </div>
+            )}
+          </>
+        )}
+        <div>
+          <label className="block text-sm text-slate-300 mb-1">
+            Observação
+          </label>
+          <input
+            type="text"
+            value={editForm.observacao}
+            onChange={(e) =>
+              setEditForm({ ...editForm, observacao: e.target.value })
+            }
+            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white"
+          />
+        </div>
+      </FormModal>
     </div>
   );
 }

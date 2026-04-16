@@ -22,6 +22,7 @@ router.put("/metas/:id", metas.atualizarMeta);
 // Aportes
 router.post("/aportes", aportes.criarAporte);
 router.get("/aportes/meta/:metaId", aportes.listarAportesPorMeta);
+router.put("/aportes/:id", aportes.atualizarAporte);
 router.delete("/aportes/:id", aportes.deletarAporte);
 
 export default router;

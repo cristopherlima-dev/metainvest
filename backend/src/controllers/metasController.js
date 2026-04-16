@@ -50,14 +50,27 @@ export async function criarMeta(req, res) {
     });
     if (!ativo) return res.status(404).json({ erro: "Ativo não encontrado" });
 
+    // Verifica se é a primeira meta deste ativo
+    const totalMetas = await prisma.meta.count({
+      where: { ativoId: Number(ativoId) },
+    });
+    const isPrimeiraMeta = totalMetas === 0;
+
+    const alvo = valorAlvo ? Number(valorAlvo) : 1000;
+    const acumuladoInicial = isPrimeiraMeta ? ativo.saldoInicial : 0;
+    const jaAtingiu = acumuladoInicial >= alvo;
+
     const meta = await prisma.meta.create({
       data: {
         ativoId: Number(ativoId),
-        valorAlvo: valorAlvo ? Number(valorAlvo) : 1000,
+        valorAlvo: alvo,
+        valorAcumulado: acumuladoInicial,
+        ...(jaAtingiu && { status: "concluida", concluidaEm: new Date() }),
       },
       include: { ativo: true },
     });
-    res.status(201).json(meta);
+
+    res.status(201).json({ meta, jaConcluida: jaAtingiu });
   } catch (error) {
     res.status(500).json({ erro: error.message });
   }

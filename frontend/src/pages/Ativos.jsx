@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../services/api";
 import { formatBRL, TIPOS_ATIVO } from "../utils/format";
 import { useUI } from "../contexts/UIContext";
+import FormModal from "../components/FormModal";
 
 export default function Ativos() {
   const { toast, confirm, prompt } = useUI();
@@ -12,6 +13,9 @@ export default function Ativos() {
     tipo: "caixinha_nubank",
     saldoInicial: "",
   });
+
+  const [editando, setEditando] = useState(null);
+  const [editForm, setEditForm] = useState({ nome: "", saldoInicial: "" });
 
   async function carregar() {
     const res = await api.get("/ativos");
@@ -32,6 +36,23 @@ export default function Ativos() {
       carregar();
     } catch (err) {
       toast.error(err.response?.data?.erro || "Erro ao criar ativo");
+    }
+  }
+
+  function abrirEdicao(ativo) {
+    setEditando(ativo);
+    setEditForm({ nome: ativo.nome, saldoInicial: ativo.saldoInicial });
+  }
+
+  async function salvarEdicao(e) {
+    e.preventDefault();
+    try {
+      await api.put(`/ativos/${editando.id}`, editForm);
+      toast.success("Ativo atualizado!");
+      setEditando(null);
+      carregar();
+    } catch (err) {
+      toast.error(err.response?.data?.erro || "Erro ao atualizar");
     }
   }
 
@@ -159,7 +180,7 @@ export default function Ativos() {
                     </span>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   {!temMetaAtiva && (
                     <button
                       onClick={() => iniciarMeta(a.id)}
@@ -169,8 +190,14 @@ export default function Ativos() {
                     </button>
                   )}
                   <button
+                    onClick={() => abrirEdicao(a)}
+                    className="text-slate-300 hover:text-white text-sm px-3 py-1"
+                  >
+                    Editar
+                  </button>
+                  <button
                     onClick={() => excluirAtivo(a.id, a.nome)}
-                    className="text-red-400 hover:text-red-300 text-sm"
+                    className="text-red-400 hover:text-red-300 text-sm px-3 py-1"
                   >
                     Excluir
                   </button>
@@ -180,6 +207,41 @@ export default function Ativos() {
           })
         )}
       </div>
+
+      <FormModal
+        isOpen={!!editando}
+        title="Editar ativo"
+        onClose={() => setEditando(null)}
+        onSubmit={salvarEdicao}
+      >
+        <div>
+          <label className="block text-sm text-slate-300 mb-1">Nome</label>
+          <input
+            type="text"
+            required
+            value={editForm.nome}
+            onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })}
+            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white"
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-slate-300 mb-1">
+            Saldo inicial (R$)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            value={editForm.saldoInicial}
+            onChange={(e) =>
+              setEditForm({ ...editForm, saldoInicial: e.target.value })
+            }
+            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white"
+          />
+        </div>
+        <p className="text-xs text-slate-400">
+          O tipo do ativo não pode ser alterado depois de criado.
+        </p>
+      </FormModal>
     </div>
   );
 }
