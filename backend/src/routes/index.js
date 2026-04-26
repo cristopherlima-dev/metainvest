@@ -14,7 +14,7 @@ router.delete("/ativos/:id", ativos.deletarAtivo);
 
 // Metas
 router.get("/metas", metas.listarMetas);
-router.get("/metas/ativa", metas.buscarMetaAtiva);
+router.get("/metas/ativas", metas.buscarMetasAtivas);
 router.get("/metas/:id", metas.buscarMeta);
 router.post("/metas", metas.criarMeta);
 router.put("/metas/:id", metas.atualizarMeta);

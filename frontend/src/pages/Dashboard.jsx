@@ -7,9 +7,11 @@ import FormModal from "../components/FormModal";
 
 export default function Dashboard() {
   const { toast, confirm, prompt } = useUI();
-  const [meta, setMeta] = useState(null);
+  const [metas, setMetas] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+
+  // Controle de formulário de aporte (por meta)
+  const [formAberto, setFormAberto] = useState(null); // id da meta com form aberto
   const [form, setForm] = useState({
     quantidade: "",
     valorUnitario: "",
@@ -17,7 +19,9 @@ export default function Dashboard() {
     observacao: "",
   });
 
+  // Controle de edição de aporte
   const [aporteEditando, setAporteEditando] = useState(null);
+  const [metaDoAporteEditando, setMetaDoAporteEditando] = useState(null);
   const [editForm, setEditForm] = useState({
     quantidade: "",
     valorUnitario: "",
@@ -25,23 +29,37 @@ export default function Dashboard() {
     observacao: "",
   });
 
-  async function carregarMeta() {
+  async function carregarMetas() {
     setLoading(true);
     try {
-      const res = await api.get("/metas/ativa");
-      setMeta(res.data);
+      const res = await api.get("/metas/ativas");
+      setMetas(res.data);
     } catch {
-      setMeta(null);
+      setMetas([]);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    carregarMeta();
+    carregarMetas();
   }, []);
 
-  async function registrarAporte(e) {
+  function toggleForm(metaId) {
+    if (formAberto === metaId) {
+      setFormAberto(null);
+    } else {
+      setFormAberto(metaId);
+      setForm({
+        quantidade: "",
+        valorUnitario: "",
+        valorTotal: "",
+        observacao: "",
+      });
+    }
+  }
+
+  async function registrarAporte(e, meta) {
     e.preventDefault();
     const isCaixinha = meta.ativo.tipo === "caixinha_nubank";
     const payload = { metaId: meta.id, observacao: form.observacao };
@@ -61,20 +79,21 @@ export default function Dashboard() {
         valorTotal: "",
         observacao: "",
       });
-      setShowForm(false);
+      setFormAberto(null);
       if (res.data.metaConcluida) {
-        toast.success("🎉 Parabéns! Meta concluída!");
+        toast.success(`🎉 Meta "${meta.ativo.nome}" concluída!`);
       } else {
         toast.success("Aporte registrado!");
       }
-      carregarMeta();
+      carregarMetas();
     } catch (err) {
       toast.error(err.response?.data?.erro || "Erro ao registrar aporte");
     }
   }
 
-  function abrirEdicaoAporte(aporte) {
+  function abrirEdicaoAporte(aporte, meta) {
     setAporteEditando(aporte);
+    setMetaDoAporteEditando(meta);
     setEditForm({
       quantidade: aporte.quantidade || "",
       valorUnitario: aporte.valorUnitario || "",
@@ -85,7 +104,7 @@ export default function Dashboard() {
 
   async function salvarEdicaoAporte(e) {
     e.preventDefault();
-    const isCaixinha = meta.ativo.tipo === "caixinha_nubank";
+    const isCaixinha = metaDoAporteEditando.ativo.tipo === "caixinha_nubank";
     const payload = { observacao: editForm.observacao };
 
     if (isCaixinha) {
@@ -99,7 +118,8 @@ export default function Dashboard() {
       await api.put(`/aportes/${aporteEditando.id}`, payload);
       toast.success("Aporte atualizado!");
       setAporteEditando(null);
-      carregarMeta();
+      setMetaDoAporteEditando(null);
+      carregarMetas();
     } catch (err) {
       toast.error(err.response?.data?.erro || "Erro ao atualizar");
     }
@@ -117,15 +137,15 @@ export default function Dashboard() {
     try {
       await api.delete(`/aportes/${id}`);
       toast.success("Aporte excluído");
-      carregarMeta();
+      carregarMetas();
     } catch (err) {
       toast.error(err.response?.data?.erro || "Erro ao excluir");
     }
   }
 
-  async function alterarValorAlvo() {
+  async function alterarValorAlvo(meta) {
     const novoValor = await prompt({
-      title: "Alterar valor da meta",
+      title: `Alterar meta — ${meta.ativo.nome}`,
       message: "Defina o novo valor alvo:",
       defaultValue: String(meta.valorAlvo),
       inputType: "number",
@@ -135,7 +155,7 @@ export default function Dashboard() {
     try {
       await api.put(`/metas/${meta.id}`, { valorAlvo: novoValor });
       toast.success("Valor da meta atualizado!");
-      carregarMeta();
+      carregarMetas();
     } catch (err) {
       toast.error(err.response?.data?.erro || "Erro ao atualizar");
     }
@@ -143,7 +163,7 @@ export default function Dashboard() {
 
   if (loading) return <p className="text-slate-400">Carregando...</p>;
 
-  if (!meta) {
+  if (metas.length === 0) {
     return (
       <div className="text-center py-16">
         <h2 className="text-2xl font-bold mb-2">Nenhuma meta ativa</h2>
@@ -161,189 +181,212 @@ export default function Dashboard() {
     );
   }
 
-  const progresso = Math.min((meta.valorAcumulado / meta.valorAlvo) * 100, 100);
-  const isCaixinha = meta.ativo.tipo === "caixinha_nubank";
+  const isCaixinhaDoEdit =
+    metaDoAporteEditando?.ativo.tipo === "caixinha_nubank";
 
   return (
     <div className="space-y-6">
-      <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <p className="text-slate-400 text-sm">Meta ativa</p>
-            <h2 className="text-3xl font-bold">{meta.ativo.nome}</h2>
-            <p className="text-slate-400 text-sm mt-1">
-              {TIPOS_ATIVO[meta.ativo.tipo]}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-slate-400 text-sm">Iniciada em</p>
-            <p>{formatData(meta.iniciadaEm)}</p>
-          </div>
-        </div>
+      <h1 className="text-3xl font-bold">Metas ativas</h1>
 
-        <div className="mb-2 flex justify-between text-sm">
-          <span className="text-slate-300">
-            {formatBRL(meta.valorAcumulado)} / {formatBRL(meta.valorAlvo)}
-          </span>
-          <span className="text-emerald-400 font-semibold">
-            {progresso.toFixed(1)}%
-          </span>
-        </div>
-        <div className="w-full bg-slate-700 rounded-full h-4 overflow-hidden">
-          <div
-            className="bg-emerald-500 h-full transition-all"
-            style={{ width: `${progresso}%` }}
-          />
-        </div>
+      {metas.map((meta) => {
+        const progresso = Math.min(
+          (meta.valorAcumulado / meta.valorAlvo) * 100,
+          100,
+        );
+        const isCaixinha = meta.ativo.tipo === "caixinha_nubank";
+        const formAbertoAqui = formAberto === meta.id;
 
-        <div className="flex gap-2 mt-6 flex-wrap">
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="bg-emerald-600 hover:bg-emerald-700 px-6 py-2 rounded-lg font-semibold transition"
-          >
-            {showForm ? "Cancelar" : "+ Novo aporte"}
-          </button>
-          <button
-            onClick={alterarValorAlvo}
-            className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm transition"
-          >
-            Alterar valor da meta
-          </button>
-        </div>
-
-        {showForm && (
-          <form
-            onSubmit={registrarAporte}
-            className="mt-4 space-y-3 bg-slate-900 p-4 rounded-lg"
-          >
-            {isCaixinha ? (
-              <div>
-                <label className="block text-sm text-slate-300 mb-1">
-                  Valor (R$)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={form.valorTotal}
-                  onChange={(e) =>
-                    setForm({ ...form, valorTotal: e.target.value })
-                  }
-                  className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2"
-                />
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
+        return (
+          <div key={meta.id} className="space-y-4">
+            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className="flex justify-between items-start mb-4">
                 <div>
-                  <label className="block text-sm text-slate-300 mb-1">
-                    Quantidade
-                  </label>
-                  <input
-                    type="number"
-                    step="0.00000001"
-                    required
-                    value={form.quantidade}
-                    onChange={(e) =>
-                      setForm({ ...form, quantidade: e.target.value })
-                    }
-                    className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-300 mb-1">
-                    Valor unitário (R$)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={form.valorUnitario}
-                    onChange={(e) =>
-                      setForm({ ...form, valorUnitario: e.target.value })
-                    }
-                    className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2"
-                  />
-                </div>
-                {form.quantidade && form.valorUnitario && (
-                  <div className="col-span-2 text-sm text-slate-400">
-                    Total:{" "}
-                    {formatBRL(
-                      Number(form.quantidade) * Number(form.valorUnitario),
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            <div>
-              <label className="block text-sm text-slate-300 mb-1">
-                Observação (opcional)
-              </label>
-              <input
-                type="text"
-                value={form.observacao}
-                onChange={(e) =>
-                  setForm({ ...form, observacao: e.target.value })
-                }
-                className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2"
-              />
-            </div>
-            <button
-              type="submit"
-              className="bg-emerald-600 hover:bg-emerald-700 px-6 py-2 rounded-lg font-semibold transition"
-            >
-              Registrar
-            </button>
-          </form>
-        )}
-      </div>
-
-      <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-        <h3 className="text-xl font-bold mb-4">Aportes da meta</h3>
-        {meta.aportes.length === 0 ? (
-          <p className="text-slate-400">Nenhum aporte registrado ainda.</p>
-        ) : (
-          <div className="space-y-2">
-            {meta.aportes.map((a) => (
-              <div
-                key={a.id}
-                className="flex justify-between items-center bg-slate-900 p-3 rounded-lg"
-              >
-                <div>
-                  <p className="font-semibold">{formatBRL(a.valorTotal)}</p>
-                  <p className="text-xs text-slate-400">
-                    {formatData(a.data)}
-                    {a.quantidade &&
-                      ` • ${a.quantidade} × ${formatBRL(a.valorUnitario)}`}
-                    {a.observacao && ` • ${a.observacao}`}
+                  <p className="text-slate-400 text-sm">Meta ativa</p>
+                  <h2 className="text-2xl font-bold">{meta.ativo.nome}</h2>
+                  <p className="text-slate-400 text-sm mt-1">
+                    {TIPOS_ATIVO[meta.ativo.tipo]}
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => abrirEdicaoAporte(a)}
-                    className="text-slate-300 hover:text-white text-sm"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => excluirAporte(a.id)}
-                    className="text-red-400 hover:text-red-300 text-sm"
-                  >
-                    Excluir
-                  </button>
+                <div className="text-right">
+                  <p className="text-slate-400 text-sm">Iniciada em</p>
+                  <p>{formatData(meta.iniciadaEm)}</p>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
 
+              <div className="mb-2 flex justify-between text-sm">
+                <span className="text-slate-300">
+                  {formatBRL(meta.valorAcumulado)} / {formatBRL(meta.valorAlvo)}
+                </span>
+                <span className="text-emerald-400 font-semibold">
+                  {progresso.toFixed(1)}%
+                </span>
+              </div>
+              <div className="w-full bg-slate-700 rounded-full h-4 overflow-hidden">
+                <div
+                  className="bg-emerald-500 h-full transition-all"
+                  style={{ width: `${progresso}%` }}
+                />
+              </div>
+
+              <div className="flex gap-2 mt-6 flex-wrap">
+                <button
+                  onClick={() => toggleForm(meta.id)}
+                  className="bg-emerald-600 hover:bg-emerald-700 px-6 py-2 rounded-lg font-semibold transition"
+                >
+                  {formAbertoAqui ? "Cancelar" : "+ Novo aporte"}
+                </button>
+                <button
+                  onClick={() => alterarValorAlvo(meta)}
+                  className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm transition"
+                >
+                  Alterar valor da meta
+                </button>
+              </div>
+
+              {formAbertoAqui && (
+                <form
+                  onSubmit={(e) => registrarAporte(e, meta)}
+                  className="mt-4 space-y-3 bg-slate-900 p-4 rounded-lg"
+                >
+                  {isCaixinha ? (
+                    <div>
+                      <label className="block text-sm text-slate-300 mb-1">
+                        Valor (R$)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={form.valorTotal}
+                        onChange={(e) =>
+                          setForm({ ...form, valorTotal: e.target.value })
+                        }
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2"
+                      />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm text-slate-300 mb-1">
+                          Quantidade
+                        </label>
+                        <input
+                          type="number"
+                          step="0.00000001"
+                          required
+                          value={form.quantidade}
+                          onChange={(e) =>
+                            setForm({ ...form, quantidade: e.target.value })
+                          }
+                          className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-300 mb-1">
+                          Valor unitário (R$)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          required
+                          value={form.valorUnitario}
+                          onChange={(e) =>
+                            setForm({ ...form, valorUnitario: e.target.value })
+                          }
+                          className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2"
+                        />
+                      </div>
+                      {form.quantidade && form.valorUnitario && (
+                        <div className="col-span-2 text-sm text-slate-400">
+                          Total:{" "}
+                          {formatBRL(
+                            Number(form.quantidade) *
+                              Number(form.valorUnitario),
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm text-slate-300 mb-1">
+                      Observação (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={form.observacao}
+                      onChange={(e) =>
+                        setForm({ ...form, observacao: e.target.value })
+                      }
+                      className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="bg-emerald-600 hover:bg-emerald-700 px-6 py-2 rounded-lg font-semibold transition"
+                  >
+                    Registrar
+                  </button>
+                </form>
+              )}
+            </div>
+
+            {/* Aportes da meta */}
+            {meta.aportes.length > 0 && (
+              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <h3 className="text-lg font-bold mb-3">
+                  Aportes — {meta.ativo.nome}
+                </h3>
+                <div className="space-y-2">
+                  {meta.aportes.map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex justify-between items-center bg-slate-900 p-3 rounded-lg"
+                    >
+                      <div>
+                        <p className="font-semibold">
+                          {formatBRL(a.valorTotal)}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {formatData(a.data)}
+                          {a.quantidade &&
+                            ` • ${a.quantidade} × ${formatBRL(a.valorUnitario)}`}
+                          {a.observacao && ` • ${a.observacao}`}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => abrirEdicaoAporte(a, meta)}
+                          className="text-slate-300 hover:text-white text-sm"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => excluirAporte(a.id)}
+                          className="text-red-400 hover:text-red-300 text-sm"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Modal de edição de aporte */}
       <FormModal
         isOpen={!!aporteEditando}
         title="Editar aporte"
-        onClose={() => setAporteEditando(null)}
+        onClose={() => {
+          setAporteEditando(null);
+          setMetaDoAporteEditando(null);
+        }}
         onSubmit={salvarEdicaoAporte}
       >
-        {isCaixinha ? (
+        {isCaixinhaDoEdit ? (
           <div>
             <label className="block text-sm text-slate-300 mb-1">
               Valor (R$)

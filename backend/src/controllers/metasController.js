@@ -34,21 +34,20 @@ export async function criarMeta(req, res) {
       return res.status(400).json({ erro: "ativoId é obrigatório" });
     }
 
-    // Regra: só pode existir UMA meta ativa em todo o sistema
-    const metaAtivaExistente = await prisma.meta.findFirst({
-      where: { status: "ativa" },
-      include: { ativo: true },
-    });
-    if (metaAtivaExistente) {
-      return res.status(400).json({
-        erro: `Já existe uma meta ativa para o ativo "${metaAtivaExistente.ativo.nome}". Conclua-a antes de criar uma nova.`,
-      });
-    }
-
     const ativo = await prisma.ativo.findUnique({
       where: { id: Number(ativoId) },
     });
     if (!ativo) return res.status(404).json({ erro: "Ativo não encontrado" });
+
+    // Regra: só pode existir UMA meta ativa POR ATIVO
+    const metaAtivaDoAtivo = await prisma.meta.findFirst({
+      where: { ativoId: Number(ativoId), status: "ativa" },
+    });
+    if (metaAtivaDoAtivo) {
+      return res.status(400).json({
+        erro: `O ativo "${ativo.nome}" já possui uma meta ativa. Conclua-a antes de criar uma nova.`,
+      });
+    }
 
     // Verifica se é a primeira meta deste ativo
     const totalMetas = await prisma.meta.count({
@@ -99,14 +98,14 @@ export async function atualizarMeta(req, res) {
   }
 }
 
-export async function buscarMetaAtiva(req, res) {
+export async function buscarMetasAtivas(req, res) {
   try {
-    const meta = await prisma.meta.findFirst({
+    const metas = await prisma.meta.findMany({
       where: { status: "ativa" },
+      orderBy: { iniciadaEm: "asc" },
       include: { ativo: true, aportes: { orderBy: { data: "desc" } } },
     });
-    if (!meta) return res.status(404).json({ erro: "Nenhuma meta ativa" });
-    res.json(meta);
+    res.json(metas);
   } catch (error) {
     res.status(500).json({ erro: error.message });
   }
